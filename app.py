@@ -10,57 +10,76 @@ le_gender = joblib.load('label_encoder_gender.pickle')
 le_diabetic = joblib.load('label_encoder_diabetic.pickle')
 le_smoker = joblib.load('label_encoder_smoker.pickle')
 
-# Page Config for a professional look
-st.set_page_config(page_title="Insurance Predictor", layout="centered")
+# Conversion Rate
+USD_TO_INR = 40
 
-st.title("🏥 Health Insurance Payment Predictor")
-st.markdown("Adjust the sliders and details below to estimate insurance costs.")
+st.set_page_config(page_title="HealthCare Expense Predictor", layout="wide")
 
-with st.form("input_form"):
-    col1, col2 = st.columns(2)
+st.title("🏥 Patient Bill & Insurance Estimator")
+st.markdown("Enter patient clinical data and stay details to calculate the total estimated cost in ₹ (Rupees).")
+
+with st.form("main_form"):
+    st.subheader("1. Patient Demographics & Health")
+    col1, col2, col3 = st.columns(3)
     
     with col1:
-        # Age Slider: 18 to 100
-        age = st.slider("Age", min_value=18, max_value=100, value=30)
-        
-        # BMI Slider: 10 to 60 with 1 decimal point
-        bmi = st.slider("BMI (Body Mass Index)", min_value=10.0, max_value=60.0, value=25.0, step=0.1)
-        
-        # Children Slider: 0 to 5 (most common range)
-        children = st.slider("Number of Children", min_value=0, max_value=5, value=0)
+        age = st.slider("Age", 18, 100, 30)
+        gender = st.selectbox("Gender", le_gender.classes_)
+        smoker = st.selectbox("Is the patient a smoker?", le_smoker.classes_)
         
     with col2:
-        # Blood Pressure Slider: 60 to 200
-        bp = st.slider("Blood Pressure (Systolic)", min_value=60, max_value=200, value=120)
-        
-        gender = st.selectbox("Gender", le_gender.classes_)
-        diabetic = st.selectbox("Diabetic Status", le_diabetic.classes_)
-        smoker = st.selectbox("Smoker?", le_smoker.classes_)
-        
+        bmi = st.slider("BMI", 10.0, 60.0, 24.5, 0.1)
+        diabetic = st.selectbox("Diabetic History", le_diabetic.classes_)
+        bp = st.slider("Blood Pressure (Systolic)", 60, 200, 120)
+
+    with col3:
+        children = st.slider("Number of Dependents", 0, 5, 0)
+        disease_type = st.selectbox("Primary Condition/Disease", 
+                                   ["General Checkup", "Infectious Disease", "Cardiology", "Neurology", "Surgery"])
+    
     st.markdown("---")
-    submitted = st.form_submit_button("💰 Calculate Estimated Premium")
+    st.subheader("2. Hospitalization Details")
+    col_a, col_b = st.columns(2)
+    
+    with col_a:
+        stay_days = st.number_input("Days of Stay", min_value=1, max_value=30, value=1)
+    
+    with col_b:
+        checkups = st.multiselect("Checkups/Services Used", 
+                                 ["X-Ray", "MRI/CT Scan", "Blood Test", "ECG", "Physiotherapy"],
+                                 default=["Blood Test"])
+
+    submitted = st.form_submit_button("Generate Estimated Bill (₹)")
 
 if submitted:
-    # Prepare input data
+    # 1. ML Prediction Logic (Base Insurance Cost)
     input_df = pd.DataFrame([[age, gender, bmi, bp, diabetic, children, smoker]], 
                             columns=['age', 'gender', 'bmi', 'bloodpressure', 'diabetic', 'children', 'smoker'])
     
-    # Encode categorical features
     input_df['gender'] = le_gender.transform(input_df['gender'])
     input_df['diabetic'] = le_diabetic.transform(input_df['diabetic'])
     input_df['smoker'] = le_smoker.transform(input_df['smoker'])
     
-    # Scale numerical features
     num_cols = ['age', 'bmi', 'bloodpressure', 'children']
     input_df[num_cols] = scaler.transform(input_df[num_cols])
     
-    # Predict
-    prediction = model.predict(input_df)
+    # Base prediction in USD, then convert to INR
+    base_prediction_usd = model.predict(input_df)[0]
+    base_prediction_inr = base_prediction_usd * USD_TO_INR
     
-    # Display Result with high-contrast formatting
-    st.subheader("Results")
-    st.success(f"The estimated annual insurance payment is: **${prediction[0]:,.2f}**")
+    # 2. Add-on Logic (Days and Services)
+    # This keeps the app logical even though the original model didn't have these columns
+    room_charge = stay_days * 2000  # ₹2000 per day
+    checkup_costs = len(checkups) * 1500  # Avg ₹1500 per test
+    disease_factor = {"General Checkup": 0, "Infectious Disease": 5000, "Cardiology": 15000, "Neurology": 12000, "Surgery": 30000}
     
-    # Professional Insight
-    if smoker == "yes":
-        st.info("Note: Smoking status significantly impacts the premium calculation.")
+    total_inr = base_prediction_inr + room_charge + checkup_costs + disease_factor[disease_type]
+
+    # 3. Final Display
+    st.success(f"### Total Estimated Expense: ₹{total_inr:,.2f}")
+    
+    with st.expander("View Bill Breakdown"):
+        st.write(f"**Base Insurance Estimate (Converted):** ₹{base_prediction_inr:,.2f}")
+        st.write(f"**Room Charges ({stay_days} days):** ₹{room_charge:,.2f}")
+        st.write(f"**Checkup/Lab Fees:** ₹{checkup_costs:,.2f}")
+        st.write(f"**Specialist Surcharge ({disease_type}):** ₹{disease_factor[disease_type]:,.2f}")
