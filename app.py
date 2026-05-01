@@ -3,102 +3,169 @@ import pandas as pd
 import joblib
 import numpy as np
 
+# Page Configuration for Premium Look
+st.set_page_config(
+    page_title="MedNavAI | Insurance Cost Predictor",
+    page_icon="💼",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# Custom CSS for UI Enhancement
+st.markdown("""
+<style>
+    .main {
+        background-color: #f8fafc;
+    }
+    .stButton>button {
+        background-color: #10b981;
+        color: white;
+        border-radius: 8px;
+        padding: 0.5rem 1rem;
+        font-weight: 600;
+        border: none;
+        width: 100%;
+        transition: all 0.3s ease;
+    }
+    .stButton>button:hover {
+        background-color: #059669;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+    }
+    h1 {
+        color: #0f172a;
+        font-weight: 800;
+        margin-bottom: 0.5rem;
+    }
+    .subtitle {
+        color: #64748b;
+        font-size: 1.1rem;
+        margin-bottom: 2rem;
+    }
+    .metric-card {
+        background: white;
+        padding: 2rem;
+        border-radius: 12px;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        text-align: center;
+        border-top: 4px solid #10b981;
+    }
+    .metric-title {
+        color: #64748b;
+        font-size: 0.875rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        font-weight: 600;
+    }
+    .metric-value {
+        color: #0f172a;
+        font-size: 3rem;
+        font-weight: 800;
+        margin: 0.5rem 0;
+    }
+</style>
+""", unsafe_allow_html=True)
+
 # Load artifacts
-model = joblib.load('best_model.pickle')
-scaler = joblib.load('scalar.pickle')
-le_gender = joblib.load('label_encoder_gender.pickle')
-le_diabetic = joblib.load('label_encoder_diabetic.pickle')
-le_smoker = joblib.load('label_encoder_smoker.pickle')
+@st.cache_resource
+def load_models():
+    model = joblib.load('best_model.pickle')
+    scaler = joblib.load('scalar.pickle')
+    le_gender = joblib.load('label_encoder_gender.pickle')
+    le_diabetic = joblib.load('label_encoder_diabetic.pickle')
+    le_smoker = joblib.load('label_encoder_smoker.pickle')
+    return model, scaler, le_gender, le_diabetic, le_smoker
 
-USD_TO_INR = 40
+try:
+    model, scaler, le_gender, le_diabetic, le_smoker = load_models()
+except Exception as e:
+    st.error(f"Error loading models: {e}. Please ensure all pickle files are in the same directory.")
+    st.stop()
 
-st.set_page_config(page_title="HealthCare AI Hub", layout="wide", page_icon="🩺")
+# Header
+col1, col2 = st.columns([1, 5])
+with col1:
+    st.image("https://cdn-icons-png.flaticon.com/512/2966/2966327.png", width=80)
+with col2:
+    st.title("Intelligent Cost Estimator")
+    st.markdown("<p class='subtitle'>Predict your health insurance premium based on personal health metrics.</p>", unsafe_allow_html=True)
 
-# Sidebar for Navigation / Project Info
-st.sidebar.title("HealthCare AI Hub")
-st.sidebar.info("This tool integrates with your Doctor Consultation Platform to provide financial transparency.")
-
-st.title("🏥 Intelligent Billing & Insurance Estimator")
 st.markdown("---")
 
-with st.form("main_form"):
-    st.subheader("📋 Patient Clinical Profile")
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        age = st.slider("Age", 18, 100, 30)
-        gender = st.selectbox("Gender", le_gender.classes_)
-        smoker = st.selectbox("Smoker Status", le_smoker.classes_)
-        
-    with col2:
-        bmi = st.slider("BMI", 10.0, 60.0, 24.5, 0.1)
-        diabetic = st.selectbox("Diabetic History", le_diabetic.classes_)
-        bp = st.slider("Blood Pressure", 60, 200, 120)
+# Sidebar for Inputs
+st.sidebar.header("Health Profile")
+st.sidebar.markdown("Provide your health metrics to calculate the estimated insurance payment.")
 
-    with col3:
-        children = st.slider("Number of Dependents", 0, 5, 0)
-        # Unified specialty list matching your Next.js triage and doctor filters
-        disease_type = st.selectbox("Specialty Required", 
-                                   ["Cardiology", "Neurology", "Gastroenterology", "Orthopedics", "Oncology", "Radiology"])
+with st.sidebar.form("input_form"):
+    st.subheader("Demographics")
+    age = st.slider("Age", 18, 100, 30)
+    gender = st.selectbox("Gender", le_gender.classes_)
+    children = st.number_input("Number of Dependents (Children)", 0, 10, 0)
     
-    st.subheader("🏥 Hospitalization & Triage Details")
-    col_a, col_b = st.columns(2)
-    
-    with col_a:
-        stay_days = st.number_input("Estimated Hospital Stay (Days)", 1, 30, 1)
-        urgency = st.select_slider("Triage Urgency Level", options=["Low", "Medium", "High", "Critical"])
-    
-    with col_b:
-        services = st.multiselect("Ancillary Services", 
-                                 ["Lab Tests", "Radiology (X-Ray/MRI)", "Pharmacy", "Emergency Care", "Physiotherapy"],
-                                 default=["Lab Tests"])
-
-    submitted = st.form_submit_button("Generate AI Financial Analysis")
-
-if submitted:
-    # 1. Base ML Prediction
-    input_df = pd.DataFrame([[age, gender, bmi, bp, diabetic, children, smoker]], 
-                            columns=['age', 'gender', 'bmi', 'bloodpressure', 'diabetic', 'children', 'smoker'])
-    
-    input_df['gender'] = le_gender.transform(input_df['gender'])
-    input_df['diabetic'] = le_diabetic.transform(input_df['diabetic'])
-    input_df['smoker'] = le_smoker.transform(input_df['smoker'])
-    
-    num_cols = ['age', 'bmi', 'bloodpressure', 'children']
-    input_df[num_cols] = scaler.transform(input_df[num_cols])
-    
-    base_inr = model.predict(input_df)[0] * USD_TO_INR
-    
-    # 2. Logic to complement your Full Stack App
-    room_charge = stay_days * 2500
-    service_costs = len(services) * 2000
-    
-    # Specialty Surcharges (Customized to your Next.js filters)
-    specialty_pricing = {
-        "Cardiology": 15000, "Neurology": 12000, "Gastroenterology": 8000, 
-        "Orthopedics": 10000, "Oncology": 25000, "Radiology": 5000
-    }
-    
-    total_inr = base_inr + room_charge + service_costs + specialty_pricing[disease_type]
-
-    # 3. Final Output Display
     st.markdown("---")
-    res_col1, res_col2 = st.columns([2, 1])
+    st.subheader("Health Vitals")
+    bmi = st.number_input("BMI (Body Mass Index)", 10.0, 60.0, 25.0, help="Healthy BMI is between 18.5 and 24.9")
+    bp = st.number_input("Blood Pressure (Systolic)", 60, 200, 120, help="Normal is around 120")
     
-    with res_col1:
-        st.success(f"### Total Estimated Bill: ₹{total_inr:,.2f}")
-        st.write(f"Based on your triage for **{disease_type}**, we recommend consulting a specialist on the Doctors Page.")
-        
-    with res_col2:
-        # Integrated Call-to-Action back to your Next.js platform
-        st.markdown(f"### Next Steps")
-        if urgency in ["High", "Critical"]:
-            st.error("🚨 Immediate Consultation Advised")
-        
-        # Link back to your local or deployed Next.js Doctors page
-        st.link_button(f"Find {disease_type} Specialist", f"http://localhost:3000/doctors?specialty={disease_type}")
+    st.markdown("---")
+    st.subheader("Lifestyle & Conditions")
+    diabetic = st.selectbox("Diabetic", le_diabetic.classes_)
+    smoker = st.selectbox("Smoker", le_smoker.classes_)
+    
+    submitted = st.form_submit_button("Calculate Premium")
 
-    with st.expander("Detailed Cost Breakdown"):
-        st.write(f"**Insurance Risk-Adjusted Base:** ₹{base_inr:,.2f}")
-        st.write(f"**Room & Stay Charges:** ₹{room_charge:,.2f}")
-        st.write(f"**Specialty Fees ({disease_type}):** ₹{specialty_pricing[disease_type]:,.2f}")
+# Main Content Area
+if submitted:
+    with st.spinner("Analyzing profile and running ML predictions..."):
+        # Prepare input data
+        input_df = pd.DataFrame([[age, gender, bmi, bp, diabetic, children, smoker]], 
+                                columns=['age', 'gender', 'bmi', 'bloodpressure', 'diabetic', 'children', 'smoker'])
+        
+        # Encode & Scale
+        input_df['gender'] = le_gender.transform(input_df['gender'])
+        input_df['diabetic'] = le_diabetic.transform(input_df['diabetic'])
+        input_df['smoker'] = le_smoker.transform(input_df['smoker'])
+        
+        num_cols = ['age', 'bmi', 'bloodpressure', 'children']
+        input_df[num_cols] = scaler.transform(input_df[num_cols])
+        
+        # Predict
+        prediction = model.predict(input_df)[0]
+        
+        # Display Result elegantly
+        st.markdown(f"""
+        <div class="metric-card">
+            <div class="metric-title">Estimated Annual Premium</div>
+            <div class="metric-value">${prediction:,.2f}</div>
+            <p style="color: #64748b; font-size: 0.9rem;">Calculated based on your health profile</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.success("Analysis Complete!")
+        
+        # Add explanation expander
+        with st.expander("📊 How was this calculated?"):
+            st.write("""
+            Our machine learning model analyzes multiple factors to predict insurance costs:
+            - **Age & BMI**: Typically, older age and higher BMI correlate with higher premiums due to increased health risks.
+            - **Smoking Status**: Smoking is one of the most significant factors in insurance costs. Smokers generally pay significantly higher premiums.
+            - **Dependents**: More children/dependents can increase the coverage cost.
+            - **Pre-existing Conditions**: Factors like diabetes and high blood pressure also contribute to the risk assessment.
+            """)
+            
+            # Simple chart to show relative impact conceptually (mock data for illustration)
+            impact_data = pd.DataFrame({
+                'Factor': ['Smoking', 'Age', 'BMI', 'Blood Pressure', 'Children'],
+                'Relative Impact': [0.4, 0.25, 0.15, 0.1, 0.1]
+            }).set_index('Factor')
+            st.bar_chart(impact_data, color="#10b981")
+else:
+    # Empty state
+    st.info("👈 Please enter your health details in the sidebar and click **Calculate Premium**.")
+    
+    st.markdown("""
+    ### Why use our Estimator?
+    - **Instant Results**: Powered by an advanced Machine Learning model.
+    - **Accurate Pricing**: Trained on thousands of real-world insurance profiles.
+    - **Privacy First**: Your data is not stored and is evaluated securely on the fly.
+    """)
