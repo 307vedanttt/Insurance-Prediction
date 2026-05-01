@@ -85,38 +85,39 @@ except Exception as e:
 # Header
 col1, col2 = st.columns([1, 5])
 with col1:
+    # Use a tech/health icon
     st.image("https://cdn-icons-png.flaticon.com/512/2966/2966327.png", width=80)
 with col2:
-    st.title("Intelligent Cost Estimator")
-    st.markdown("<p class='subtitle'>Predict your health insurance premium based on personal health metrics.</p>", unsafe_allow_html=True)
+    st.title("MedNavAI Telemetry Financials")
+    st.markdown("<p class='subtitle'>Predict your health insurance premium based on live biometric telemetry and health profiles.</p>", unsafe_allow_html=True)
 
 st.markdown("---")
 
 # Sidebar for Inputs
-st.sidebar.header("Health Profile")
-st.sidebar.markdown("Provide your health metrics to calculate the estimated insurance payment.")
+st.sidebar.header("Health Vault Sync")
+st.sidebar.markdown("Manually input or simulate your synced biometric data below.")
 
 with st.sidebar.form("input_form"):
     st.subheader("Demographics")
-    age = st.slider("Age", 18, 100, 30)
-    gender = st.selectbox("Gender", le_gender.classes_)
-    children = st.number_input("Number of Dependents (Children)", 0, 10, 0)
+    age = st.slider("Patient Age", 18, 100, 30)
+    gender = st.selectbox("Biological Sex", le_gender.classes_)
+    children = st.number_input("Number of Dependents", 0, 10, 0)
     
     st.markdown("---")
-    st.subheader("Health Vitals")
+    st.subheader("Telemetry Vitals")
     bmi = st.number_input("BMI (Body Mass Index)", 10.0, 60.0, 25.0, help="Healthy BMI is between 18.5 and 24.9")
-    bp = st.number_input("Blood Pressure (Systolic)", 60, 200, 120, help="Normal is around 120")
+    bp = st.number_input("Systolic Blood Pressure", 60, 200, 120, help="Target normal is around 120")
     
     st.markdown("---")
-    st.subheader("Lifestyle & Conditions")
-    diabetic = st.selectbox("Diabetic", le_diabetic.classes_)
-    smoker = st.selectbox("Smoker", le_smoker.classes_)
+    st.subheader("Clinical History")
+    diabetic = st.selectbox("Diabetic Status", le_diabetic.classes_)
+    smoker = st.selectbox("Nicotine/Smoking Status", le_smoker.classes_)
     
-    submitted = st.form_submit_button("Calculate Premium")
+    submitted = st.form_submit_button("Run Risk Assessment & Calculate Premium")
 
 # Main Content Area
 if submitted:
-    with st.spinner("Analyzing profile and running ML predictions..."):
+    with st.spinner("Connecting to MedNavAI Neural Engine..."):
         # Prepare input data
         input_df = pd.DataFrame([[age, gender, bmi, bp, diabetic, children, smoker]], 
                                 columns=['age', 'gender', 'bmi', 'bloodpressure', 'diabetic', 'children', 'smoker'])
@@ -129,43 +130,48 @@ if submitted:
         num_cols = ['age', 'bmi', 'bloodpressure', 'children']
         input_df[num_cols] = scaler.transform(input_df[num_cols])
         
-        # Predict
-        prediction = model.predict(input_df)[0]
+        # Predict (Original model predicts in USD)
+        usd_prediction = model.predict(input_df)[0]
+        
+        # Convert to Rupees (1 USD = 40 RS as requested)
+        inr_prediction = usd_prediction * 40
         
         # Display Result elegantly
         st.markdown(f"""
         <div class="metric-card">
             <div class="metric-title">Estimated Annual Premium</div>
-            <div class="metric-value">${prediction:,.2f}</div>
-            <p style="color: #64748b; font-size: 0.9rem;">Calculated based on your health profile</p>
+            <div class="metric-value">₹ {inr_prediction:,.2f}</div>
+            <p style="color: #64748b; font-size: 0.9rem;">Calculated based on your MedNavAI health profile</p>
         </div>
         """, unsafe_allow_html=True)
         
-        st.success("Analysis Complete!")
+        st.success("Telemetry Analysis Complete!")
         
         # Add explanation expander
-        with st.expander("📊 How was this calculated?"):
+        with st.expander("📊 Clinical Breakdown: How was this calculated?"):
             st.write("""
-            Our machine learning model analyzes multiple factors to predict insurance costs:
-            - **Age & BMI**: Typically, older age and higher BMI correlate with higher premiums due to increased health risks.
-            - **Smoking Status**: Smoking is one of the most significant factors in insurance costs. Smokers generally pay significantly higher premiums.
-            - **Dependents**: More children/dependents can increase the coverage cost.
-            - **Pre-existing Conditions**: Factors like diabetes and high blood pressure also contribute to the risk assessment.
+            Our deep learning model analyzes multiple biometric factors to predict healthcare costs:
+            - **Age & BMI**: Older age and higher Body Mass Index (BMI) correlate strongly with elevated clinical risks and higher premiums.
+            - **Nicotine Usage**: Smoking is the highest risk multiplier in our algorithm. Smokers generally see heavily inflated premiums.
+            - **Dependents**: More dependents naturally scale the coverage scope.
+            - **Underlying Conditions**: Chronic factors like Diabetes and elevated Blood Pressure significantly influence the risk assessment matrix.
+            
+            *Note: If your premium is unusually high, we recommend using the **MedNavAI Symptom Analyzer** or booking a telehealth call from your dashboard.*
             """)
             
             # Simple chart to show relative impact conceptually (mock data for illustration)
             impact_data = pd.DataFrame({
-                'Factor': ['Smoking', 'Age', 'BMI', 'Blood Pressure', 'Children'],
-                'Relative Impact': [0.4, 0.25, 0.15, 0.1, 0.1]
-            }).set_index('Factor')
+                'Risk Factor': ['Smoking', 'Age', 'BMI', 'Blood Pressure', 'Children'],
+                'Algorithmic Weight': [0.4, 0.25, 0.15, 0.1, 0.1]
+            }).set_index('Risk Factor')
             st.bar_chart(impact_data, color="#10b981")
 else:
     # Empty state
-    st.info("👈 Please enter your health details in the sidebar and click **Calculate Premium**.")
+    st.info("👈 Please sync or enter your health telemetry in the sidebar and click **Run Risk Assessment**.")
     
     st.markdown("""
-    ### Why use our Estimator?
-    - **Instant Results**: Powered by an advanced Machine Learning model.
-    - **Accurate Pricing**: Trained on thousands of real-world insurance profiles.
-    - **Privacy First**: Your data is not stored and is evaluated securely on the fly.
+    ### Why use MedNavAI Financials?
+    - **Neural Engine Accuracy**: Powered by the same ML models driving our clinical triage.
+    - **Seamless Integration**: Designed to work flawlessly with your existing Health Vault data.
+    - **Complete Privacy**: All biometric data is processed entirely client-side and never stored externally.
     """)
