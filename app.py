@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 import joblib
 import numpy as np
+import os
+st.write("Files in current directory:", os.listdir("."))
 
 # Load artifacts
 model = joblib.load('best_model.pickle')
